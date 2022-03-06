@@ -1,0 +1,120 @@
+---
+title: "Time Series Analysis of Adult Salmon Passage at Willamette Falls"
+author: "Renee LaManna"
+date: "3/5/2022"
+output: 
+  html_document: 
+    toc: yes
+    theme: yeti
+    number_sections: no
+    code_folding: hide 
+---
+## Overview {.tabset .tabset-fade}
+
+The data used for this analysis is comprised of adult fish passage recorded from 2001-01-01 to 2010-12-31 at Willamette Falls fish ladder on the Willamette River, Oregon. The data was shared by and accessed from Columbia River Data Access in Real Time (DART). Data collection and management is supported by a multitude of organizations including; U.S. Army Corps of Engineers, NWD and Chelan, Douglas, and Grant County PUDs, Yakima Klickitat Fisheries Project, Colville Tribes Fish & Wildlife (OBMEP), Oregon Department of Fish & Wildlife, Washington Department of Fish & Wildlife. This time series analysis visualizes daily, monthly, and annual counts of Steelhead, Coho, and Jack-Coho salmon species from 2001 through 2010. 
+
+
+**Data citation:**
+```{r setup, include=TRUE, warning = FALSE, message = FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+
+library(tidyverse)
+library(here)
+library(lubridate)
+library(tsibble)
+library(slider)
+library(feasts)
+library(cowplot)
+library(patchwork)
+```
+
+```{r}
+# Read in the data
+fish <- read_csv(here("data", "willamette_fish_passage.csv")) %>% 
+  janitor::clean_names()
+```
+
+```{r}
+fish_ts <- fish %>% 
+  mutate(date = lubridate::mdy(date)) %>%  # date is currently a character, need to convert to Date using lubridate() pkg
+  as_tsibble(key = NULL, index = date) # then conver to time series data fram using tsibble pkg
+```
+
+```{r}
+fish_ts_clean <- fish_ts %>% 
+  select(date, steelhead, coho, jack_coho)  
+
+fish_ts_longer <- pivot_longer(data = fish_ts_clean,
+             cols = steelhead:jack_coho,
+             names_to = "species",
+             values_to = "count") %>% 
+  mutate(species_full = case_when(
+    species == "steelhead" ~ "Steelhead",
+    species =="coho" ~ "Coho",
+    species == "jack_coho" ~ "Jack-Coho"
+  ))
+
+fish_ts_longer[is.na(fish_ts_longer)] <- 0
+```
+
+### Daily Time Series data
+
+```{r}
+ggplot(data = fish_ts_longer, aes(x = date, y = count)) +
+  geom_line(aes(color = species)) +
+   scale_color_manual(values = c("salmon3", "salmon", "rosybrown1")) +
+  facet_grid(species_full ~., scales = "free_y") +
+  theme_minimal() +
+  theme(legend.position = "none")
+  
+```
+
+**Figure 1.** Daily count of Coho, Jack-Coho, and Steelhead salmon from 2001-2010. Note that y-scales vary between species to better display possible trends and patterns. 
+
+### Seasonplots
+
+``` {r}
+fish_month <- fish_ts_longer %>% 
+  index_by(yr_mo = ~yearmonth(.))%>% 
+  group_by(species_full) %>% 
+  summarize(mean_count = sum(count, na.rm = TRUE))
+```
+
+``` {r}
+
+fish_month %>% 
+  gg_season(y = mean_count, year.labels = TRUE, continuous = TRUE,  pal = (scales::hue_pal())(3)) +
+  theme_minimal() 
+
+```
+
+**Figure 2.** Season plot visualizing total monthly counts of Coho, Jack-Coho, and Steelhead Salmon in each year from 2001-2010. Note that y-scales vary between species to better display possible trends and patterns. 
+ 
+
+
+
+### Annual counts
+
+```{r}
+fish_annual <- fish_ts_longer %>% 
+  index_by(yearly = ~year(.))%>% 
+  group_by(species_full) %>% 
+  summarize(mean_count = sum(count, na.rm = TRUE))
+
+ggplot(data = fish_annual, aes(x = yearly, y = mean_count)) +
+  geom_line(aes(color = species_full)) +
+  scale_color_manual(values = c("salmon3", "salmon", "rosybrown1")) +
+  facet_grid(species_full ~., scales = "free_y") +
+  scale_x_continuous(breaks = c(2001:2010)) +
+  theme_minimal() + 
+  theme(legend.position = "none") +
+  labs(x = "Year", y = "Total Count")
+
+```
+
+**Figure 3.** Annual counts of Coho, Jack-Coho, and Steelhead salmon from 2001-2010. Note that y-scales vary between species to better display possible trends and patterns. 
+
+
+
+
+
