@@ -21,8 +21,8 @@ accessed: https://map.dfg.ca.gov/metadata/ds0394.html
 US Census Bureau 2016 MAF/TIGER. California Open Data Portal. accessed: https://data.ca.gov/dataset/ca-geographic-boundaries/resource/b0007416-a325-4777-9295-368ea6b710e6?inner_span=True
 
 ```{r setup, include=TRUE, warning = FALSE, message = FALSE}
-# Set code chunk options and attach necessary pkgs
 knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+# Set code chunk options and attach necessary pkgs
 
 library(tidyverse)
 library(here)
