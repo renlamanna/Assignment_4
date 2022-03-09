@@ -5,7 +5,7 @@ date: "3/3/2022"
 output: 
   html_document: 
     toc: yes
-    theme: journal
+    theme: yeti
     number_sections: no
     code_folding: hide 
 ---
@@ -47,6 +47,7 @@ ca_counties_sf <- read_sf(here("data/CA_Counties_TIGER2016.shp")) %>%
 Code is wrangled to simplify shape files of both `ca_counties_sf` and `oil_spills_sf`. Coordinate reference systems (CRS) are adjusted to match b/w the two datasets. Two maps that show the distribution of oil spills in California and among counties are the outcome of this data wrangling.
 
 ```{r}
+# Create a subset with only necessary variables
 ca_subset_sf <- ca_counties_sf %>% 
   select(county_name = name, land_area = aland)
 ```
