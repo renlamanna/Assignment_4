@@ -40,6 +40,7 @@ library(patchwork)
 # Read in the data
 fish <- read_csv(here("data", "willamette_fish_passage.csv")) %>% 
   janitor::clean_names()
+
 ```
 
 ```{r}
