@@ -1,0 +1,256 @@
+---
+title: "Text-analysis of Dune, by Frank Herbert"
+author: "Renee LaManna"
+date: "3/6/2022"
+output: 
+  html_document: 
+    toc: yes
+    theme: yeti
+    number_sections: no
+    code_folding: hide 
+---
+## Overview 
+
+This text-analysis explores common words and sentiments in the sci-fi novel *Dune* by Frank Herbert. The PDF of *Dune* is converted into data frame and wrangled to divide the novel into it's three books: Dune, Muad'Dib, and The Prophet. The most common sentiments and words in each of the three books is then visually compared. The text of the novel was obtained from github user ganesh-k13.  
+
+**Citation:**
+Herbert, Frank. (1965). *Dune*. https://raw.githubusercontent.com/ganesh-k13/shell/master/test_search/www.glozman.com/TextPages/Frank%20Herbert%20-%20Dune.txt 
+
+```{r setup, include=TRUE, message=FALSE, warning=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message=FALSE, warning=FALSE)
+# Set code chunk options and attatch necessary pkgs 
+
+library(tidyverse)
+library(tidytext)
+library(textdata)
+library(pdftools)
+library(ggwordcloud)
+library(patchwork)
+```
+
+
+```{r}
+# Read in the data and store as dune_text
+dune_text <- pdf_text(here::here('data', 'dune.pdf'))
+```
+
+
+```{r}
+# Convert text into dataframe
+
+dune_lines <- data.frame(dune_text) %>% 
+  mutate(page = 1:n()) %>%
+  mutate(text_full = str_split(dune_text, pattern = '\\n')) %>% 
+  unnest(text_full) %>% 
+  mutate(text_full = str_trim(text_full)) 
+
+```
+
+
+```{r}
+# Make new column that contains book number
+
+dune_books <- dune_lines %>% 
+  slice(-(398:429)) %>% # remove appendices 
+  slice(-(1:5)) %>% # remove first couple words before Book 1 begins
+  mutate(book = ifelse((text_full %in% c("Book 1", "Book Two", "Book Three")), text_full, NA)) %>% # in text_full, look for the following, "Book 1", "Book Two", & "Book Three", make everything else NA
+  fill(book, .direction = "down") %>% 
+  separate(col = book, into = c("book", "no"), sep = " ") %>% 
+  mutate(no = case_when(
+    no == "1" ~ "1: Dune",
+    no == "Two" ~ "2: Muad'Dib",
+    no == "Three" ~ "3: The Prophet"
+  ))
+
+```
+
+
+```{r}
+# Get word counts by book
+
+dune_words <- dune_books %>% 
+  unnest_tokens(word, text_full) %>% 
+  select(-dune_text)
+```
+
+
+```{r results = FALSE}
+# Remove stopwords
+
+head(stop_words)
+x <- stop_words
+
+dune_words_clean <- dune_words %>% 
+  anti_join(stop_words, by = "word")
+
+nonstop_counts <- dune_words_clean %>% 
+  count(no,word)
+```
+
+## I. Most Frequent Words
+
+```{r}
+# Get top 15 words from nonstop_counts
+top_15_words <- nonstop_counts %>% 
+  group_by(no) %>% 
+  arrange(-n) %>% 
+  slice(1:15) %>%
+  ungroup() %>% 
+  mutate(word = fct_reorder(word, desc(n)))
+ 
+# Make some graphs: 
+ggplot(data = top_15_words, aes(x = n, y = word)) +
+  geom_col(aes(fill = no), alpha = 0.7) +
+  scale_fill_manual(values = c("darkseagreen4", "darkseagreen3", "darkseagreen2")) +
+  facet_wrap(~no, scales = "free") +
+  theme_minimal() +
+  theme(legend.position = "none") +  # remove legend 
+  labs(x = "Count", y = "Word")
+```
+
+**Figure 1.** Visualization of the most common words found in each of the three books within the novel, *Dune*. 
+
+
+## II. Sentiment Analysis: Scores
+
+```{r}
+# Get sentiments
+dune_afinn <- dune_words_clean %>% 
+  inner_join(get_sentiments("afinn"), by = 'word')
+```
+
+
+```{r}
+afinn_counts <- dune_afinn %>% 
+  count(no, value, word)
+ 
+# Plot them: 
+p1 <- ggplot(data = afinn_counts, aes(x = value, y = n)) +
+  geom_col(aes(fill = no), alpha = 0.7) +
+  scale_fill_manual(values = c("darkseagreen4", "darkseagreen3", "darkseagreen2")) +
+  facet_wrap(~no) +
+  theme_minimal() +
+  theme(legend.position = "none") +
+  labs(title = "A", x = "Score", y = "Count")
+  
+```
+
+``` {r}
+# Find the mean afinn score by chapter: 
+afinn_means <- dune_afinn %>% 
+  group_by(no) %>%  # group_by book #
+  summarize(mean_afinn = mean(value))
+ 
+# Plot afinn_means and store as p2 
+p2 <- ggplot(data = afinn_means, 
+       aes(x = fct_rev(factor(no)),
+           y = mean_afinn)) +
+           # y = fct_rev(as.factor(no))) +
+  geom_col(aes(fill = no), alpha = 0.7) +
+  scale_fill_manual(values = c("darkseagreen4", "darkseagreen3", "darkseagreen2"))  +
+  coord_flip() +
+  theme_minimal() +
+  theme(legend.position = "none") +
+  labs(title = "B", y = "Score", x = "Book #")
+  
+```
+
+```{r}
+# Combine p1 and p2 using patchwork pkg
+p1 + p2
+```
+
+**Figure 2.** Sentiment analysis exploring positive and negative sentiments between the three books within the novel, *Dune*. A more negative score indicates a more negative sentiment, while a more positive value indicates a more positive sentiment. Figure A. shows the distribution of positive and negative sentiments among the three books. Figure B. shows the average score in each of the three books. 
+
+
+
+## III. Sentiment Analysis: Word Clouds {.tabset .tabset-fade} 
+
+```{r}
+# Get sentiments and joing by "word"
+dune_nrc <- dune_words_clean %>% 
+  inner_join(get_sentiments("nrc"))
+```
+
+
+```{r include = FALSE}
+# Exploratory 
+
+dune_nrc_counts <- dune_nrc %>% 
+  count(no, sentiment)
+ 
+# ggplot to see count of common sentiments, decided not to to include in final
+ggplot(data = dune_nrc_counts, aes(x = sentiment, y = n)) +
+  geom_col() +
+  facet_wrap(~no) +
+  coord_flip()
+```
+
+### Book 1: "Dune"
+
+```{r}
+# Get top 10 sentiments from Book 1 and make wordcloud
+book1_top100 <- afinn_counts %>% 
+  filter(no == "1: Dune") %>% 
+  arrange(-n) %>%  
+  slice(1:100)
+
+book1_cloud <- ggplot(data = book1_top100, aes(label = word)) +
+  geom_text_wordcloud(aes(color = n, size = n), shape = "diamond") +
+  scale_size_area(max_size = 6) +
+  scale_color_gradientn(colors = c("darkgreen","blue","purple")) +
+  theme_minimal()
+ 
+book1_cloud
+```
+
+**Figure 3.** Word cloud of common sentiments in Book 1: "Dune". Larger and more centered words are more common sentiments and smaller words further from the center are less common sentiments. 
+
+### Book 2: "Muad'Dib"
+
+```{r}
+# Get top 10 sentiments from Book 2 and make wordcloud
+book2_top100 <- afinn_counts %>% 
+  filter(no == "2: Muad'Dib") %>% 
+  arrange(-n) %>% 
+  slice(1:100)
+
+book2_cloud <- ggplot(data = book2_top100, aes(label = word)) +
+  geom_text_wordcloud(aes(color = n, size = n), shape = "diamond") +
+  scale_size_area(max_size = 6) +
+  scale_color_gradientn(colors = c("darkgreen","blue","purple")) +
+  theme_minimal()
+ 
+book2_cloud
+```
+
+**Figure 4.** Word cloud of common sentiments in Book 2: "Muad'Dib". Larger and more centered words are more common sentiments and smaller words further from the center are less common sentiments. 
+
+
+### Book 3: "The Prophet"
+
+```{r}
+# Get top 10 sentiments from Book 3 and make wordcloud
+book3_top100 <- afinn_counts %>% 
+  filter(no == "3: The Prophet") %>% 
+  arrange(-n) %>% 
+  slice(1:100)
+
+book3_cloud <- ggplot(data = book3_top100, aes(label = word)) +
+  geom_text_wordcloud(aes(color = n, size = n), shape = "diamond") +
+  scale_size_area(max_size = 6) +
+  scale_color_gradientn(colors = c("darkgreen","blue","purple")) +
+  theme_minimal()
+ 
+book3_cloud
+```
+
+**Figure 5.** Word cloud of common sentiments in Book 3: "The Prophet". Larger and more centered words are more common sentiments and smaller words further from the center are less common sentiments. 
+
+## Main Takeaways
+
+- Most common words are character names. We can see some transition and introduction of characters between books such as the introduction of Chani in Book 2 and Alia in Book 3. 
+- In all three of the books within the novel *Dune*, the mean sentiment is negative, with the greatest negative mean being in the final book.
+- The trend of negative sentiments can be visualized in the word clouds with death/dead being some of the more common sentiments throughout the books. 
+- In future analysis, it may be more revealing to remove common character names from the top 15 words. It also would be interesting to look at sentiments within just one of the books and between chapters
+- Overall not much variation in sentiment between each of the books within *Dune*

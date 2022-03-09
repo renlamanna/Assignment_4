@@ -5,7 +5,7 @@ date: "3/3/2022"
 output: 
   html_document: 
     toc: yes
-    theme: yeti
+    theme: journal
     number_sections: no
     code_folding: hide 
 ---

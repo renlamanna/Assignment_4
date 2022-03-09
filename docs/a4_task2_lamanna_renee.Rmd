@@ -24,6 +24,7 @@ School of Aquatic & Fishery Sciences, University of Washington. http://www.cbr.w
 ![Fish Ladder at Willamette Falls. Credit: *US Army Core of Engineers, Portland District*](images/map.png){width="75%"}
 ```{r setup, include=TRUE, warning = FALSE, message = FALSE}
 knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+# Attach code chunk options and attach necessary pkgs
 
 library(tidyverse)
 library(here)
@@ -49,9 +50,9 @@ fish_ts <- fish %>%
 
 ```{r}
 fish_ts_clean <- fish_ts %>% 
-  select(date, steelhead, coho, jack_coho)  
+  select(date, steelhead, coho, jack_coho)  # select only necessary variables
 
-fish_ts_longer <- pivot_longer(data = fish_ts_clean,
+fish_ts_longer <- pivot_longer(data = fish_ts_clean, # Need to convert species which are variables into obsv. (use pivot_longer)
              cols = steelhead:jack_coho,
              names_to = "species",
              values_to = "count") %>% 
@@ -70,13 +71,16 @@ fish_ts_longer[is.na(fish_ts_longer)] <- 0
 ### Daily Time Series data
 
 ```{r}
+# Make daily time series data using fish_ts_longer
+
 ggplot(data = fish_ts_longer, aes(x = date, y = count)) +
   geom_line(aes(color = species)) +
-   scale_color_manual(values = c("goldenrod", "darkseagreen4", "steelblue2")) +
-  facet_grid(species_full ~., scales = "free_y") +
+  scale_color_manual(values = c("goldenrod", "darkseagreen4", "steelblue2")) +
+  facet_grid(species_full ~., scales = "free_y") + # Freeing y-axis to better see trends/patters since counts vary so much between species
   theme_minimal() +
-  theme(legend.position = "none")
-  
+  theme(legend.position = "none") + # remove legend
+  labs(y = "Count",
+       x = "Date")
 ```
 
 **Figure 1.** Daily count of Coho, Jack-Coho, and Steelhead salmon from 2001-2010. Note that y-scales vary between species to better display possible trends and patterns. 
@@ -87,17 +91,18 @@ ggplot(data = fish_ts_longer, aes(x = date, y = count)) +
 ### Seasonplots
 
 ``` {r}
+# Wrangle for seasonplot
 fish_month <- fish_ts_longer %>% 
-  index_by(yr_mo = ~yearmonth(.))%>% 
-  group_by(species_full) %>% 
-  summarize(mean_count = mean(count, na.rm = TRUE))
-```
+  index_by(yr_mo = ~yearmonth(.))%>%  # use index_by() to group by the time index yearmonth
+  group_by(species_full) %>%  
+  summarize(total_count = sum(count, na.rm = TRUE)) # Need sum of all the counts in all of the months, e.g. sum of all fish counts in all months of May from 2001-2010
 
-``` {r}
-
+# Seasonplot using gg_season()
 fish_month %>% 
-  gg_season(y = mean_count, year.labels = TRUE, continuous = TRUE,  pal = (scales::hue_pal())(3)) +
-  theme_minimal() 
+  gg_season(y = total_count, year.labels = TRUE, continuous = TRUE,  pal = (scales::hue_pal())(3)) +
+  theme_minimal()  +
+  labs(y = "Total Count",
+       x = "Month")
 
 ```
 
@@ -117,12 +122,12 @@ fish_annual <- fish_ts_longer %>%
   summarize(mean_count = sum(count, na.rm = TRUE))
 
 ggplot(data = fish_annual, aes(x = yearly, y = mean_count)) +
-  geom_line(aes(color = species_full)) +
+  geom_line(aes(color = species_full)) + # color corresponds to species
   scale_color_manual(values = c("goldenrod", "darkseagreen4", "steelblue2")) +
-  facet_grid(species_full ~., scales = "free_y") +
-  scale_x_continuous(breaks = c(2001:2010)) +
+  facet_grid(species_full ~., scales = "free_y") + # Freeing y-axis to better see trends/patters since counts vary so much between species
+  scale_x_continuous(breaks = c(2001:2010)) + # set breaks so every year shows up on x-axis
   theme_minimal() + 
-  theme(legend.position = "none") +
+  theme(legend.position = "none") + # remove legend
   labs(x = "Year", y = "Total Count")
 
 ```
